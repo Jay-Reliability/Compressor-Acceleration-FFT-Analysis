@@ -1,0 +1,1714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compressor Acceleration Analysis Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Plotly.js for interactive plotting -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-base: #0a0a0f;
+            --bg-surface: rgba(20, 20, 30, 0.6);
+            --bg-card: rgba(30, 30, 45, 0.45);
+            --border-glow: rgba(0, 229, 255, 0.2);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-cyan: #00e5ff;
+            --accent-purple: #7c4dff;
+            --accent-emerald: #00e676;
+            --accent-rose: #ff1744;
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-display: 'Outfit', sans-serif;
+            --channels-count: 2;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(124, 77, 255, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 229, 255, 0.12) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-cyan);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .logo-area h1 {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--text-primary) 30%, var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-area p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* Glassmorphism Card Style */
+        .glass-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(0, 229, 255, 0.15);
+        }
+
+        /* Sidebar Controls */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* File Upload */
+        .file-upload-wrapper {
+            position: relative;
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s, border-color 0.3s;
+        }
+
+        .file-upload-wrapper:hover, .file-upload-wrapper.dragover {
+            background: rgba(0, 229, 255, 0.05);
+            border-color: var(--accent-cyan);
+        }
+
+        .file-upload-wrapper input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-upload-icon {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            color: var(--accent-cyan);
+        }
+
+        .file-upload-text {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .file-upload-subtext {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Input Controls */
+        input[type="number"], select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            font-size: 0.9rem;
+            padding: 10px 12px;
+            width: 100%;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.2);
+        }
+
+        /* Column Selection Checkboxes */
+        .checkbox-container {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            max-height: 140px;
+            overflow-y: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .checkbox-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            accent-color: var(--accent-cyan);
+            cursor: pointer;
+        }
+
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border: none;
+            border-radius: 10px;
+            color: #05050a;
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 700;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 229, 255, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+            border-color: var(--text-secondary);
+        }
+
+        .btn:disabled, .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* File Info Card */
+        .info-card {
+            font-size: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+            padding-bottom: 6px;
+        }
+
+        .info-row span:first-child {
+            color: var(--text-secondary);
+        }
+
+        .info-row span:last-child {
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        /* Main Workspace Display */
+        .main-display {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Charts Grid Layout */
+        .charts-grid {
+            display: grid;
+            grid-template-rows: 350px 380px;
+            grid-template-columns: repeat(var(--channels-count), 1fr);
+            gap: 20px;
+            min-height: 750px;
+        }
+
+        .chart-container {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            z-index: 10;
+        }
+
+        .chart-title {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.2px;
+        }
+
+        .chart-plot-area {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Floating Scale Selector (Popup) */
+        .scale-selector-container {
+            position: relative;
+        }
+
+        .scale-badge {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .scale-badge:hover {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--accent-cyan);
+        }
+
+        /* Small Popup Overlay for Scale Selection */
+        .scale-popup {
+            display: none;
+            position: absolute;
+            top: 30px;
+            right: 0;
+            background: #141423;
+            border: 1px solid var(--accent-cyan);
+            border-radius: 8px;
+            padding: 6px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 100;
+            min-width: 100px;
+        }
+
+        .scale-popup.active {
+            display: block;
+        }
+
+        .scale-option {
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: background 0.2s;
+            text-align: left;
+        }
+
+        .scale-option:hover {
+            background: rgba(0, 229, 255, 0.15);
+            color: var(--accent-cyan);
+        }
+
+        .scale-option.selected {
+            color: var(--accent-cyan);
+            font-weight: 700;
+        }
+
+        /* Metric Highlights Overlay inside charts */
+        .chart-metrics {
+            display: flex;
+            gap: 16px;
+            margin-top: 4px;
+            font-size: 0.75rem;
+        }
+
+        .metric-badge {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 4px 8px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+        }
+
+        .metric-value {
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 500px;
+            text-align: center;
+            border: 1px dashed var(--border-subtle);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.01);
+            padding: 40px;
+        }
+
+        .empty-state-icon {
+            font-size: 3.5rem;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .empty-state-title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .empty-state-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            max-width: 320px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+
+        /* Utility classes */
+        .d-none { display: none !important; }
+        .text-cyan { color: var(--accent-cyan) !important; }
+        .text-purple { color: var(--accent-purple) !important; }
+        .text-emerald { color: var(--accent-emerald) !important; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <h1>📊 Compressor Acceleration Analysis</h1>
+            <p>High-Fidelity Vibration Signal Processing & FFT Diagnostics Dashboard</p>
+        </div>
+        <div id="file-indicator" class="info-row d-none" style="border: none; gap: 12px; align-items: center;">
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Active File:</span>
+            <span id="active-filename-badge" style="background: rgba(0, 229, 255, 0.1); border: 1px solid var(--accent-cyan); border-radius: 12px; padding: 4px 12px; font-size: 0.8rem; font-weight: 700; color: var(--accent-cyan);"></span>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Sidebar Controls Panel -->
+        <div class="sidebar">
+            <!-- 1. CSV File Selection -->
+            <div class="glass-card">
+                <div class="control-group">
+                    <label>1. Select Input Data</label>
+                    <div class="file-upload-wrapper" id="drop-zone">
+                        <div class="file-upload-icon">📂</div>
+                        <div class="file-upload-text">Choose CSV File</div>
+                        <div class="file-upload-subtext">or drag & drop here</div>
+                        <input type="file" id="file-input" accept=".csv">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. File Metadata (conditionally shown) -->
+            <div class="glass-card d-none" id="metadata-panel">
+                <div class="info-card">
+                    <h3 style="font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px;">File Information</h3>
+                    <div class="info-row">
+                        <span>Total Samples</span>
+                        <span id="meta-samples">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Duration</span>
+                        <span id="meta-duration">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Sampling Rate</span>
+                        <span id="meta-fs">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Channel & Analysis Configuration -->
+            <div class="glass-card">
+                <div class="control-group" style="gap: 16px;">
+                    <!-- Time Column Selection -->
+                    <div class="control-group">
+                        <label for="time-col-select">Time Column</label>
+                        <select id="time-col-select">
+                            <option value="">-- Auto-select --</option>
+                        </select>
+                    </div>
+
+                    <!-- Channel List Multi-select -->
+                    <div class="control-group">
+                        <label>Vibration Channels</label>
+                        <div class="checkbox-container" id="channels-container">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); padding: 8px; text-align: center;">Load CSV to see channels</div>
+                        </div>
+                    </div>
+
+                    <!-- Start Time -->
+                    <div class="control-group">
+                        <label for="input-start-time">Start Time (sec)</label>
+                        <input type="number" id="input-start-time" value="15" step="0.1" min="0">
+                    </div>
+
+                    <!-- Duration -->
+                    <div class="control-group">
+                        <label for="input-duration">Analysis Duration (sec)</label>
+                        <input type="number" id="input-duration" value="2" step="0.1" min="0.1">
+                    </div>
+
+                    <!-- Max Frequency Plot Limit -->
+                    <div class="control-group">
+                        <label for="input-max-freq">Max FFT Frequency (Hz)</label>
+                        <input type="number" id="input-max-freq" value="200" step="1" min="1">
+                    </div>
+
+                    <!-- Gaussian Smoothing Sigma -->
+                    <div class="control-group">
+                        <label for="input-sigma">Gaussian Filter Sigma (σ)</label>
+                        <input type="number" id="input-sigma" value="0.5" step="0.05" min="0">
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <button class="btn" id="btn-analyze" disabled>
+                        <span>⚡</span> Run Diagnostics
+                    </button>
+
+                    <button class="btn btn-secondary" id="btn-export" disabled>
+                        <span>📥</span> Export FFT Data
+                    </button>
+
+                    <button class="btn btn-secondary" id="btn-export-images" disabled>
+                        <span>📷</span> Export Graphs (JPG)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace (Charts Grid) -->
+        <div class="main-display">
+            <!-- Empty State Display -->
+            <div class="empty-state" id="empty-state">
+                <div class="empty-state-icon">📈</div>
+                <h2 class="empty-state-title">No Signal Loaded</h2>
+                <p class="empty-state-desc">Please choose a vibration CSV file on the left sidebar and configure parameters to compute diagnostic spectra.</p>
+            </div>
+
+            <!-- Charts Render Grid -->
+            <div class="charts-grid d-none" id="charts-grid">
+                <!-- Dynamically populated at run time -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Signal Processing & Core Math Algorithms ---
+
+        // Bit Reversal Permutation for Radix-2 FFT
+        function bitReverse(real, imag) {
+            const n = real.length;
+            let j = 0;
+            for (let i = 0; i < n; i++) {
+                if (i < j) {
+                    let temp = real[i]; real[i] = real[j]; real[j] = temp;
+                    temp = imag[i]; imag[i] = imag[j]; imag[j] = temp;
+                }
+                let bit = n >> 1;
+                while (j >= bit && bit > 0) {
+                    j -= bit;
+                    bit >>= 1;
+                }
+                j += bit;
+            }
+        }
+
+        // Cooley-Tukey In-Place Radix-2 FFT (Forward/Inverse)
+        // size must be a power of 2
+        function radix2FFT(real, imag, inverse = false) {
+            const n = real.length;
+            bitReverse(real, imag);
+
+            const dir = inverse ? 1 : -1;
+            for (let len = 2; len <= n; len <<= 1) {
+                const angle = (2 * Math.PI * dir) / len;
+                const wlen_r = Math.cos(angle);
+                const wlen_i = Math.sin(angle);
+                const halfLen = len >> 1;
+
+                for (let i = 0; i < n; i += len) {
+                    let w_r = 1.0;
+                    let w_i = 0.0;
+                    for (let k = 0; k < halfLen; k++) {
+                        const u = i + k;
+                        const v = i + k + halfLen;
+                        // complex multiplication t = w * v
+                        const t_r = w_r * real[v] - w_i * imag[v];
+                        const t_i = w_r * imag[v] + w_i * real[v];
+                        // butterfly updates
+                        real[v] = real[u] - t_r;
+                        imag[v] = imag[u] - t_i;
+                        real[u] += t_r;
+                        imag[u] += t_i;
+
+                        // update twiddle factor: w *= wlen
+                        const next_w_r = w_r * wlen_r - w_i * wlen_i;
+                        w_i = w_r * wlen_i + w_i * wlen_r;
+                        w_r = next_w_r;
+                    }
+                }
+            }
+
+            if (inverse) {
+                for (let i = 0; i < n; i++) {
+                    real[i] /= n;
+                    imag[i] /= n;
+                }
+            }
+        }
+
+        // Bluestein's Algorithm for Arbitrary-Size FFT (O(N log N))
+        // Enables calculation of exact user-defined samples without power-of-two padding constraints.
+        function bluesteinFFT(inReal, inImag) {
+            const N = inReal.length;
+            // Smallest power of 2 >= 2*N - 1
+            let M = 1;
+            while (M < 2 * N - 1) {
+                M <<= 1;
+            }
+
+            const a_r = new Float64Array(M);
+            const a_i = new Float64Array(M);
+            const c_r = new Float64Array(M);
+            const c_i = new Float64Array(M);
+
+            // Compute chirp sequence b[n] = e^(i * pi * n^2 / N)
+            const b_r = new Float64Array(N);
+            const b_i = new Float64Array(N);
+            for (let n = 0; n < N; n++) {
+                const angle = (Math.PI * n * n) / N;
+                b_r[n] = Math.cos(angle);
+                b_i[n] = Math.sin(angle);
+            }
+
+            // Prepare modulated input a[n] = x[n] * conj(b[n])
+            for (let n = 0; n < N; n++) {
+                a_r[n] = inReal[n] * b_r[n] + inImag[n] * b_i[n];
+                a_i[n] = inImag[n] * b_r[n] - inReal[n] * b_i[n];
+            }
+
+            // Prepare chirp response c[n]
+            for (let n = 0; n < N; n++) {
+                c_r[n] = b_r[n];
+                c_i[n] = b_i[n];
+            }
+            for (let n = 1; n < N; n++) {
+                c_r[M - n] = b_r[n];
+                c_i[M - n] = b_i[n];
+            }
+
+            // Convolution using Radix-2 FFT
+            radix2FFT(a_r, a_i, false);
+            radix2FFT(c_r, c_i, false);
+
+            // Pointwise multiplication
+            const d_r = new Float64Array(M);
+            const d_i = new Float64Array(M);
+            for (let k = 0; k < M; k++) {
+                d_r[k] = a_r[k] * c_r[k] - a_i[k] * c_i[k];
+                d_i[k] = a_r[k] * c_i[k] + a_i[k] * c_r[k];
+            }
+
+            // Inverse FFT
+            radix2FFT(d_r, d_i, true);
+
+            // De-modulate output: Y[k] = d[k] * conj(b[k])
+            const outReal = new Float64Array(N);
+            const outImag = new Float64Array(N);
+            for (let k = 0; k < N; k++) {
+                outReal[k] = d_r[k] * b_r[k] + d_i[k] * b_i[k];
+                outImag[k] = d_i[k] * b_r[k] - d_r[k] * b_i[k];
+            }
+
+            return { real: outReal, imag: outImag };
+        }
+
+        // Unified FFT Selector
+        function computeCoreFFT(real, imag) {
+            const N = real.length;
+            if ((N & (N - 1)) === 0) {
+                // power of 2, run in-place radix2FFT directly
+                radix2FFT(real, imag, false);
+                return { real, imag };
+            } else {
+                return bluesteinFFT(real, imag);
+            }
+        }
+
+        // Calculate FFT with Hamming Window and Magnitude Correction
+        // Aligns with the standard workspace implementation directions
+        function computeFFT(signal, samplingRate, numSamples) {
+            const N = signal.length;
+            const window = new Float64Array(N);
+            const windowed = new Float64Array(N);
+            
+            // Hamming window application
+            for (let i = 0; i < N; i++) {
+                window[i] = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (N - 1));
+                windowed[i] = signal[i] * window[i];
+            }
+
+            // RMS Magnitude Correction calculation
+            let sumSq = 0;
+            let sumAbs = 0;
+            for (let i = 0; i < N; i++) {
+                sumSq += windowed[i] * windowed[i];
+                sumAbs += Math.abs(windowed[i]);
+            }
+            const signalRMS = Math.sqrt(sumSq / N);
+            const meanAbs = sumAbs / N;
+            // ratio = RMS / Mean Absolute Value
+            const signalRatio = meanAbs > 0 ? (signalRMS / meanAbs) : 1.0;
+
+            console.log('Signal RMS:', signalRMS);
+            console.log('Scaling Ratio:', signalRatio);
+
+            // Prepare FFT input buffers
+            const real = new Float64Array(numSamples);
+            const imag = new Float64Array(numSamples);
+            for (let i = 0; i < Math.min(N, numSamples); i++) {
+                real[i] = windowed[i];
+            }
+
+            // Execute FFT
+            const fftResult = computeCoreFFT(real, imag);
+
+            // Compute single-sided spectrum magnitude
+            const magXk = new Float64Array(numSamples);
+            for (let i = 0; i < numSamples; i++) {
+                const r = fftResult.real[i];
+                const img = fftResult.imag[i];
+                const mag = Math.sqrt(r * r + img * img);
+                magXk[i] = (mag / N) * signalRatio;
+            }
+
+            // Scale non-DC and non-Nyquist frequencies by 2 (Single-Sided Spectrum correction)
+            const halfSize = Math.floor(numSamples / 2);
+            for (let i = 1; i < halfSize; i++) {
+                magXk[i] *= 2;
+            }
+
+            const magXk1 = magXk.slice(0, halfSize);
+            const frequencies = new Float64Array(halfSize);
+            for (let i = 0; i < halfSize; i++) {
+                frequencies[i] = (i * samplingRate) / numSamples;
+            }
+
+            return { frequencies, magXk1, signalRMS, signalRatio };
+        }
+
+        // 1D Gaussian Filter with Reflective Boundary Conditions
+        function gaussianFilter1D(arr, sigma) {
+            if (sigma <= 0) return arr.slice();
+            const radius = Math.ceil(4 * sigma);
+            const kernel = new Float64Array(2 * radius + 1);
+            let sum = 0;
+            
+            // Build kernel
+            for (let i = -radius; i <= radius; i++) {
+                const val = Math.exp(-(i * i) / (2 * sigma * sigma));
+                kernel[i + radius] = val;
+                sum += val;
+            }
+            // Normalize kernel
+            for (let i = 0; i < kernel.length; i++) {
+                kernel[i] /= sum;
+            }
+
+            const L = arr.length;
+            const result = new Float64Array(L);
+            
+            // Convolve with reflect boundary mode
+            for (let i = 0; i < L; i++) {
+                let val = 0;
+                for (let j = -radius; j <= radius; j++) {
+                    let idx = i + j;
+                    if (idx < 0) {
+                        idx = -idx; // reflect at left
+                    } else if (idx >= L) {
+                        idx = 2 * L - 2 - idx; // reflect at right
+                    }
+                    if (idx < 0) idx = 0;
+                    if (idx >= L) idx = L - 1;
+                    val += arr[idx] * kernel[j + radius];
+                }
+                result[i] = val;
+            }
+            return result;
+        }
+
+        // Convert magnitude to dB: dB = 20 * log10(mag / 10^-5)
+        function convertToDB(magArray) {
+            const dB = new Float64Array(magArray.length);
+            const ref = 1e-5;
+            for (let i = 0; i < magArray.length; i++) {
+                const ratio = Math.max(magArray[i], 1e-12) / ref;
+                dB[i] = 20 * Math.log10(ratio);
+            }
+            return dB;
+        }
+
+
+        // --- Application State and Event Logic ---
+
+        let parsedData = null; // Stores parsed raw CSV columns
+        let fileMetadata = {}; // Parsed file details
+        let analysisResults = {}; // Results of FFT calculation per channel
+        let currentScaleMode = {}; // Scale mode (linear vs dB) per channel
+
+        // DOM elements
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileIndicator = document.getElementById('file-indicator');
+        const activeFilenameBadge = document.getElementById('active-filename-badge');
+        const metadataPanel = document.getElementById('metadata-panel');
+        const timeColSelect = document.getElementById('time-col-select');
+        const channelsContainer = document.getElementById('channels-container');
+        const inputStartTime = document.getElementById('input-start-time');
+        const inputDuration = document.getElementById('input-duration');
+        const inputMaxFreq = document.getElementById('input-max-freq');
+        const inputSigma = document.getElementById('input-sigma');
+        const btnAnalyze = document.getElementById('btn-analyze');
+        const btnExport = document.getElementById('btn-export');
+        const btnExportImages = document.getElementById('btn-export-images');
+        const emptyState = document.getElementById('empty-state');
+        const chartsGrid = document.getElementById('charts-grid');
+
+        // Drag & Drop utilities
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        // Parse file using PapaParse
+        function handleFileSelect(file) {
+            fileMetadata.name = file.name;
+            parsedData = null;
+            btnAnalyze.disabled = true;
+            btnExport.disabled = true;
+            btnExportImages.disabled = true;
+
+            // Loader status
+            document.querySelector('.file-upload-text').textContent = 'Parsing File...';
+
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processCSVData(results.data);
+                },
+                error: function(err) {
+                    alert('Error parsing CSV file: ' + err.message);
+                    document.querySelector('.file-upload-text').textContent = 'Choose CSV File';
+                }
+            });
+        }
+
+        // Process columns & update controls
+        function processCSVData(data) {
+            if (data.length === 0) {
+                alert('The selected CSV file is empty.');
+                document.querySelector('.file-upload-text').textContent = 'Choose CSV File';
+                return;
+            }
+
+            // Get headers from first row
+            const headers = Object.keys(data[0]);
+            if (headers.length < 2) {
+                alert('The CSV file must contain at least 2 columns.');
+                document.querySelector('.file-upload-text').textContent = 'Choose CSV File';
+                return;
+            }
+
+            // Structure data columns
+            const columns = {};
+            headers.forEach(h => {
+                columns[h] = [];
+            });
+
+            // Parse numbers into arrays
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+                headers.forEach(h => {
+                    const val = Number(row[h]);
+                    columns[h].push(isNaN(val) ? 0 : val);
+                });
+            }
+
+            parsedData = columns;
+
+            // Auto-detect Time column
+            let timeCol = headers.find(h => h.toLowerCase() === 'time') || headers[0];
+            
+            // Populate select box for time column
+            timeColSelect.innerHTML = '';
+            headers.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h;
+                opt.textContent = h;
+                if (h === timeCol) opt.selected = true;
+                timeColSelect.appendChild(opt);
+            });
+
+            // Calculate duration and sampling rate based on auto-detected time column
+            calculateAndDisplayMetadata(timeCol);
+
+            // Populate channel checkbox multi-selector
+            channelsContainer.innerHTML = '';
+            const potentialChannels = headers.filter(h => h !== timeCol);
+            
+            potentialChannels.forEach(ch => {
+                const div = document.createElement('div');
+                div.className = 'checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = ch;
+                checkbox.id = `chk-${ch}`;
+                // Auto-check CH11, CH12 or all by default
+                if (ch === 'CH11' || ch === 'CH12' || potentialChannels.length <= 2) {
+                    checkbox.checked = true;
+                }
+
+                const label = document.createElement('label');
+                label.htmlFor = `chk-${ch}`;
+                label.textContent = ch;
+                label.style.cursor = 'pointer';
+                label.style.width = '100%';
+
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                channelsContainer.appendChild(div);
+            });
+
+            // UI Adjustments
+            document.querySelector('.file-upload-text').textContent = 'Choose CSV File';
+            fileIndicator.classList.remove('d-none');
+            activeFilenameBadge.textContent = fileMetadata.name;
+            metadataPanel.classList.remove('d-none');
+            btnAnalyze.disabled = false;
+
+            // Event handler for time column update
+            timeColSelect.onchange = function() {
+                calculateAndDisplayMetadata(timeColSelect.value);
+                // Re-populate channel list without time column
+                const tCol = timeColSelect.value;
+                const checkedBefore = Array.from(channelsContainer.querySelectorAll('input:checked')).map(c => c.value);
+                channelsContainer.innerHTML = '';
+                headers.filter(h => h !== tCol).forEach(ch => {
+                    const div = document.createElement('div');
+                    div.className = 'checkbox-item';
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = ch;
+                    checkbox.id = `chk-${ch}`;
+                    if (checkedBefore.includes(ch) || (checkedBefore.length === 0 && (ch === 'CH11' || ch === 'CH12'))) {
+                        checkbox.checked = true;
+                    }
+                    const label = document.createElement('label');
+                    label.htmlFor = `chk-${ch}`;
+                    label.textContent = ch;
+                    div.appendChild(checkbox);
+                    div.appendChild(label);
+                    channelsContainer.appendChild(div);
+                });
+            };
+        }
+
+        // Calculate sample parameters
+        function calculateAndDisplayMetadata(timeCol) {
+            const times = parsedData[timeCol];
+            const totalSamples = times.length;
+            const totalDuration = times[totalSamples - 1]; // total_duration = df['Time'].iloc[-1]
+            const samplingRate = Math.round(totalSamples / totalDuration); // sampling_rate = int(len(df) / total_duration)
+
+            fileMetadata.totalSamples = totalSamples;
+            fileMetadata.totalDuration = totalDuration;
+            fileMetadata.samplingRate = samplingRate;
+            fileMetadata.timeCol = timeCol;
+
+            // Update UI fields
+            document.getElementById('meta-samples').textContent = totalSamples.toLocaleString();
+            document.getElementById('meta-duration').textContent = totalDuration.toFixed(3) + ' s';
+            document.getElementById('meta-fs').textContent = samplingRate.toLocaleString() + ' Hz';
+
+            // Set suggested default settings based on limits
+            inputStartTime.max = Math.max(0, totalDuration - 0.1).toFixed(2);
+            inputDuration.max = totalDuration.toFixed(2);
+        }
+
+        // Event for Analyze Click
+        btnAnalyze.addEventListener('click', () => {
+            runDiagnostics();
+        });
+
+        // core diagnostic flow
+        function runDiagnostics() {
+            if (!parsedData) return;
+
+            // Get selected channels
+            const checkedBoxes = Array.from(channelsContainer.querySelectorAll('input:checked'));
+            const selectedChannels = checkedBoxes.map(cb => cb.value);
+
+            if (selectedChannels.length === 0) {
+                alert('Please select at least one vibration channel to analyze.');
+                return;
+            }
+
+            // Get input configuration values
+            const timeCol = timeColSelect.value;
+            const startTime = parseFloat(inputStartTime.value);
+            const duration = parseFloat(inputDuration.value);
+            const maxFreqLimit = parseFloat(inputMaxFreq.value);
+            const sigma = parseFloat(inputSigma.value);
+            const samplingRate = fileMetadata.samplingRate;
+
+            // Calculate boundary samples:
+            // start_sample = int(start_time * sampling_rate)
+            // num_samples = int(duration * sampling_rate)
+            const startSample = Math.round(startTime * samplingRate);
+            const numSamples = Math.round(duration * samplingRate);
+
+            if (startSample < 0 || startSample >= fileMetadata.totalSamples) {
+                alert(`Start Sample Index (${startSample}) is out of bounds for the dataset (0 to ${fileMetadata.totalSamples - 1}). Adjust Start Time.`);
+                return;
+            }
+
+            // Clamp sample length
+            const actualNumSamples = Math.min(numSamples, fileMetadata.totalSamples - startSample);
+            if (actualNumSamples < 4) {
+                alert('Not enough samples to calculate FFT. Increase duration.');
+                return;
+            }
+
+            // Clear display
+            emptyState.classList.add('d-none');
+            chartsGrid.classList.remove('d-none');
+            chartsGrid.innerHTML = '';
+            
+            // Set grid columns template based on channel count
+            document.documentElement.style.setProperty('--channels-count', selectedChannels.length);
+
+            // Re-initialize calculated results mapping
+            analysisResults = {
+                time: [],
+                channels: {},
+                frequencies: null
+            };
+
+            // Extract Segmented Time Array
+            const fullTimes = parsedData[timeCol];
+            const segmentTimes = new Float64Array(actualNumSamples);
+            for (let i = 0; i < actualNumSamples; i++) {
+                segmentTimes[i] = fullTimes[startSample + i];
+            }
+            analysisResults.time = segmentTimes;
+
+            // Run calculations for each channel
+            selectedChannels.forEach(ch => {
+                const fullSignal = parsedData[ch];
+                const segmentSignal = new Float64Array(actualNumSamples);
+                for (let i = 0; i < actualNumSamples; i++) {
+                    segmentSignal[i] = fullSignal[startSample + i];
+                }
+
+                // Compute FFT with Hamming & Correction
+                const fftOut = computeFFT(segmentSignal, samplingRate, actualNumSamples);
+
+                // Apply Gaussian filter to full spectrum
+                const rawMag = fftOut.magXk1;
+                const smoothedMag = gaussianFilter1D(rawMag, sigma);
+
+                // Cache results
+                if (!analysisResults.frequencies) {
+                    analysisResults.frequencies = fftOut.frequencies;
+                }
+
+                if (!currentScaleMode[ch]) {
+                    currentScaleMode[ch] = 'linear'; // default scale mode is linear
+                }
+
+                analysisResults.channels[ch] = {
+                    rawSignal: segmentSignal,
+                    rawMag: rawMag,
+                    smoothedMag: smoothedMag,
+                    signalRMS: fftOut.signalRMS,
+                    signalRatio: fftOut.signalRatio
+                };
+            });
+
+            // Render Charts Grid
+            renderCharts(selectedChannels, maxFreqLimit);
+
+            // Enable Export
+            btnExport.disabled = false;
+            btnExportImages.disabled = false;
+        }
+
+        // Render Plots using Plotly.js
+        function renderCharts(channels, maxFreqLimit) {
+            // First Row: Time Domain graphs
+            // Second Row: Frequency Domain graphs
+            
+            // Build placeholders
+            channels.forEach((ch, colIdx) => {
+                const chData = analysisResults.channels[ch];
+                const signal = chData.rawSignal;
+                const time = analysisResults.time;
+
+                // Find time-domain max and min values
+                let maxVal = signal[0];
+                let maxTime = time[0];
+                let minVal = signal[0];
+                let minTime = time[0];
+                for (let i = 1; i < signal.length; i++) {
+                    if (signal[i] > maxVal) {
+                        maxVal = signal[i];
+                        maxTime = time[i];
+                    }
+                    if (signal[i] < minVal) {
+                        minVal = signal[i];
+                        minTime = time[i];
+                    }
+                }
+
+                // 1. Time Domain Container (Row 1)
+                const timeCard = document.createElement('div');
+                timeCard.className = 'chart-container';
+                timeCard.id = `chart-time-${ch}`;
+                timeCard.innerHTML = `
+                    <div class="chart-header">
+                        <span class="chart-title">📈 Time Domain - ${ch}</span>
+                        <div class="chart-metrics" style="align-items: center;">
+                            <div class="metric-badge">
+                                <span class="metric-label">Max:</span>
+                                <span class="metric-value">${maxVal.toFixed(4)}</span>
+                            </div>
+                            <div class="metric-badge">
+                                <span class="metric-label">Min:</span>
+                                <span class="metric-value">${minVal.toFixed(4)}</span>
+                            </div>
+                            <div class="scale-badge" onclick="downloadChartImage('plot-time-${ch}', '${ch}_Time_Domain')">
+                                📷 Save JPG
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-plot-area" id="plot-time-${ch}"></div>
+                `;
+                chartsGrid.appendChild(timeCard);
+            });
+
+            // Second Row Appends (to align properly in CSS grid rows)
+            channels.forEach((ch, colIdx) => {
+                const chData = analysisResults.channels[ch];
+                const activeMode = currentScaleMode[ch] || 'linear';
+
+                // Find spectral variables filtered up to maxFreqLimit
+                const frequencies = analysisResults.frequencies;
+                const mag = chData.smoothedMag;
+
+                // Limit data indices based on maxFreqLimit
+                let limitIdx = frequencies.length - 1;
+                for (let i = 0; i < frequencies.length; i++) {
+                    if (frequencies[i] > maxFreqLimit) {
+                        limitIdx = i;
+                        break;
+                    }
+                }
+                const filteredFreqs = frequencies.subarray(0, limitIdx);
+                const filteredMag = mag.subarray(0, limitIdx);
+
+                // Find 1X peak (dominant frequency excluding DC index 0)
+                let maxIdx = 1;
+                for (let i = 2; i < filteredMag.length; i++) {
+                    if (filteredMag[i] > filteredMag[maxIdx]) {
+                        maxIdx = i;
+                    }
+                }
+                const freq1X = filteredFreqs[maxIdx] || 0;
+                const mag1X = filteredMag[maxIdx] || 0;
+
+                // Overall Acceleration in Band
+                // Calculated as the root-sum-of-squares of the spectral magnitudes.
+                // This represents the Peak Overall vibration level, ensuring Overall Acceleration is mathematically
+                // greater than or equal to any individual peak component (such as the 1X magnitude).
+                let sumSqMag = 0;
+                for (let i = 1; i < filteredMag.length; i++) {
+                    sumSqMag += (filteredMag[i] * filteredMag[i]);
+                }
+                const overallAcceleration = Math.sqrt(sumSqMag);
+
+                const freqCard = document.createElement('div');
+                freqCard.className = 'chart-container';
+                freqCard.id = `chart-freq-${ch}`;
+                freqCard.innerHTML = `
+                    <div class="chart-header">
+                        <span class="chart-title">⚡ Frequency Domain (FFT) - ${ch}</span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <div class="scale-selector-container">
+                                <div class="scale-badge" id="badge-scale-${ch}" onclick="toggleScalePopup('${ch}')">
+                                    Scale: ${activeMode.toUpperCase()} ▾
+                                </div>
+                                <div class="scale-popup" id="popup-scale-${ch}">
+                                    <div class="scale-option ${activeMode === 'linear' ? 'selected' : ''}" onclick="changeScale('${ch}', 'linear')">Linear</div>
+                                    <div class="scale-option ${activeMode === 'dB' ? 'selected' : ''}" onclick="changeScale('${ch}', 'dB')">dB (Ref: 10⁻⁵)</div>
+                                </div>
+                            </div>
+                            <div class="scale-badge" onclick="downloadChartImage('plot-freq-${ch}', '${ch}_Frequency_Spectrum')">
+                                📷 Save JPG
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-metrics" style="margin-bottom: 8px;">
+                        <div class="metric-badge">
+                            <span class="metric-label">1X Freq:</span>
+                            <span class="metric-value">${freq1X.toFixed(2)} Hz</span>
+                        </div>
+                        <div class="metric-badge">
+                            <span class="metric-label">1X Mag:</span>
+                            <span id="metric-1x-mag-${ch}" class="metric-value"></span>
+                        </div>
+                        <div class="metric-badge">
+                            <span class="metric-label">Overall Acc:</span>
+                            <span id="metric-oa-${ch}" class="metric-value"></span>
+                        </div>
+                    </div>
+                    <div class="chart-plot-area" id="plot-freq-${ch}"></div>
+                `;
+                chartsGrid.appendChild(freqCard);
+
+                // Cache derived metrics
+                chData.freq1X = freq1X;
+                chData.mag1X = mag1X;
+                chData.overallAcc = overallAcceleration;
+                chData.limitIdx = limitIdx;
+            });
+
+            // Render plots via Plotly
+            channels.forEach(ch => {
+                renderTimePlot(ch);
+                renderFreqPlot(ch);
+            });
+        }
+
+        // Plotly Time Domain Render
+        function renderTimePlot(ch) {
+            const chData = analysisResults.channels[ch];
+            const x = analysisResults.time;
+            const y = chData.rawSignal;
+
+            // Find min/max values again for annotations
+            let maxVal = y[0], maxIdx = 0;
+            let minVal = y[0], minIdx = 0;
+            for (let i = 1; i < y.length; i++) {
+                if (y[i] > maxVal) { maxVal = y[i]; maxIdx = i; }
+                if (y[i] < minVal) { minVal = y[i]; minIdx = i; }
+            }
+
+            const trace = {
+                x: Array.from(x),
+                y: Array.from(y),
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#00e5ff', width: 1.5 },
+                hovertemplate: 'Time: %{x:.4f} s<br>Value: %{y:.4f}<extra></extra>'
+            };
+
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                margin: { l: 50, r: 20, t: 20, b: 40 },
+                xaxis: {
+                    title: { text: 'Time (seconds)', font: { color: '#94a3b8', size: 10 } },
+                    gridcolor: 'rgba(255,255,255,0.05)',
+                    tickfont: { color: '#64748b', size: 9 },
+                    zerolinecolor: 'rgba(255,255,255,0.1)'
+                },
+                yaxis: {
+                    title: { text: 'Acceleration (g)', font: { color: '#94a3b8', size: 10 } },
+                    gridcolor: 'rgba(255,255,255,0.05)',
+                    tickfont: { color: '#64748b', size: 9 },
+                    zerolinecolor: 'rgba(255,255,255,0.1)'
+                },
+                annotations: [
+                    {
+                        x: x[maxIdx],
+                        y: maxVal,
+                        xref: 'x',
+                        yref: 'y',
+                        text: `Max: ${maxVal.toFixed(3)}`,
+                        showarrow: true,
+                        arrowhead: 2,
+                        arrowsize: 1,
+                        arrowwidth: 1.5,
+                        arrowcolor: '#00e676',
+                        ax: 0,
+                        ay: -30,
+                        font: { color: '#00e676', size: 9, family: 'Plus Jakarta Sans', weight: 'bold' },
+                        bgcolor: 'rgba(0, 0, 0, 0.7)',
+                        bordercolor: '#00e676',
+                        borderwidth: 1,
+                        borderpad: 3,
+                        borderround: 4
+                    },
+                    {
+                        x: x[minIdx],
+                        y: minVal,
+                        xref: 'x',
+                        yref: 'y',
+                        text: `Min: ${minVal.toFixed(3)}`,
+                        showarrow: true,
+                        arrowhead: 2,
+                        arrowsize: 1,
+                        arrowwidth: 1.5,
+                        arrowcolor: '#ff1744',
+                        ax: 0,
+                        ay: 30,
+                        font: { color: '#ff1744', size: 9, family: 'Plus Jakarta Sans', weight: 'bold' },
+                        bgcolor: 'rgba(0, 0, 0, 0.7)',
+                        bordercolor: '#ff1744',
+                        borderwidth: 1,
+                        borderpad: 3,
+                        borderround: 4
+                    }
+                ]
+            };
+
+            Plotly.newPlot(`plot-time-${ch}`, [trace], layout, { responsive: true, displayModeBar: false });
+        }
+
+        // Plotly Frequency Domain Render
+        function renderFreqPlot(ch) {
+            const chData = analysisResults.channels[ch];
+            const mode = currentScaleMode[ch] || 'linear';
+            const frequencies = analysisResults.frequencies.subarray(0, chData.limitIdx);
+            
+            // Source array for FFT is smoothedMag
+            const smoothedMag = chData.smoothedMag.subarray(0, chData.limitIdx);
+            let yValues;
+            let yUnit;
+            let val1XText;
+            let valOAText;
+
+            if (mode === 'dB') {
+                yValues = Array.from(convertToDB(smoothedMag));
+                yUnit = 'Amplitude (dB ref 10⁻⁵)';
+                
+                // Convert 1X and Overall values to dB as well for display
+                const db1X = 20 * Math.log10(Math.max(chData.mag1X, 1e-12) / 1e-5);
+                const dbOA = 20 * Math.log10(Math.max(chData.overallAcc, 1e-12) / 1e-5);
+                val1XText = `${db1X.toFixed(1)} dB`;
+                valOAText = `${dbOA.toFixed(1)} dB`;
+            } else {
+                yValues = Array.from(smoothedMag);
+                yUnit = 'Magnitude (g RMS)';
+                val1XText = chData.mag1X.toFixed(5);
+                valOAText = chData.overallAcc.toFixed(5);
+            }
+
+            // Update DOM headers
+            document.getElementById(`metric-1x-mag-${ch}`).textContent = val1XText;
+            document.getElementById(`metric-oa-${ch}`).textContent = valOAText;
+
+            // Find 1X peak index in coordinates
+            let maxIdx = 1;
+            for (let i = 2; i < yValues.length; i++) {
+                if (yValues[i] > yValues[maxIdx]) { maxIdx = i; }
+            }
+
+            const trace = {
+                x: Array.from(frequencies),
+                y: yValues,
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#7c4dff', width: 1.5 },
+                hovertemplate: 'Freq: %{x:.2f} Hz<br>Amp: %{y:.5f}<extra></extra>'
+            };
+
+            const annotations = [];
+            if (frequencies.length > maxIdx) {
+                annotations.push({
+                    x: frequencies[maxIdx],
+                    y: yValues[maxIdx],
+                    xref: 'x',
+                    yref: 'y',
+                    text: `1X Peak: ${frequencies[maxIdx].toFixed(2)} Hz`,
+                    showarrow: true,
+                    arrowhead: 2,
+                    arrowsize: 1,
+                    arrowwidth: 1.5,
+                    arrowcolor: '#7c4dff',
+                    ax: 30,
+                    ay: -30,
+                    font: { color: '#7c4dff', size: 9, family: 'Plus Jakarta Sans', weight: 'bold' },
+                    bgcolor: 'rgba(0, 0, 0, 0.7)',
+                    bordercolor: '#7c4dff',
+                    borderwidth: 1,
+                    borderpad: 3,
+                    borderround: 4
+                });
+            }
+
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                margin: { l: 60, r: 20, t: 20, b: 40 },
+                xaxis: {
+                    title: { text: 'Frequency (Hz)', font: { color: '#94a3b8', size: 10 } },
+                    gridcolor: 'rgba(255,255,255,0.05)',
+                    tickfont: { color: '#64748b', size: 9 },
+                    zerolinecolor: 'rgba(255,255,255,0.1)'
+                },
+                yaxis: {
+                    title: { text: yUnit, font: { color: '#94a3b8', size: 10 } },
+                    gridcolor: 'rgba(255,255,255,0.05)',
+                    tickfont: { color: '#64748b', size: 9 },
+                    zerolinecolor: 'rgba(255,255,255,0.1)'
+                },
+                annotations: annotations
+            };
+
+            // Calculate auto-scale Y limit
+            let yMax = -Infinity;
+            let yMin = Infinity;
+            for (let i = 0; i < yValues.length; i++) {
+                if (yValues[i] > yMax) yMax = yValues[i];
+                if (yValues[i] < yMin) yMin = yValues[i];
+            }
+            const pad = (yMax - yMin) * 0.15 || 0.1;
+            layout.yaxis.range = [mode === 'dB' ? (yMin - pad) : 0, yMax + pad];
+
+            Plotly.newPlot(`plot-freq-${ch}`, [trace], layout, { responsive: true, displayModeBar: false });
+        }
+
+
+        // --- UI Interactions ---
+
+        // Dropdown toggler for scale selection
+        window.toggleScalePopup = function(ch) {
+            const popup = document.getElementById(`popup-scale-${ch}`);
+            popup.classList.toggle('active');
+            
+            // Close other popups
+            document.querySelectorAll('.scale-popup').forEach(p => {
+                if (p.id !== `popup-scale-${ch}`) {
+                    p.classList.remove('active');
+                }
+            });
+            
+            // Close popup on outside click
+            const handler = function(e) {
+                if (!e.target.closest('.scale-selector-container')) {
+                    popup.classList.remove('active');
+                    document.removeEventListener('click', handler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', handler), 10);
+        };
+
+        // Change Scale action callback
+        window.changeScale = function(ch, scaleMode) {
+            currentScaleMode[ch] = scaleMode;
+            
+            // Update badge text
+            const badge = document.getElementById(`badge-scale-${ch}`);
+            badge.innerHTML = `Scale: ${scaleMode.toUpperCase()} ▾`;
+
+            // Update option checks
+            const popup = document.getElementById(`popup-scale-${ch}`);
+            popup.querySelectorAll('.scale-option').forEach(opt => {
+                if (opt.textContent.toLowerCase().includes(scaleMode.toLowerCase())) {
+                    opt.classList.add('selected');
+                } else {
+                    opt.classList.remove('selected');
+                }
+            });
+
+            // Redraw Frequency Plot
+            renderFreqPlot(ch);
+            
+            // Close popup
+            popup.classList.remove('active');
+        };
+
+        // Export Calculation Data to CSV
+        btnExport.addEventListener('click', async () => {
+            if (!analysisResults.frequencies) return;
+
+            const channels = Object.keys(analysisResults.channels);
+            const freqs = analysisResults.frequencies;
+            const len = freqs.length;
+
+            // Generate CSV file content
+            // Headers: Freq, CH_Mag_Linear, CH_Mag_dB...
+            let csvHeaders = ['Frequency (Hz)'];
+            channels.forEach(ch => {
+                csvHeaders.push(`${ch}_Mag_Linear`);
+                csvHeaders.push(`${ch}_Mag_dB`);
+            });
+
+            let csvContent = csvHeaders.join(',') + '\n';
+
+            for (let i = 0; i < len; i++) {
+                let row = [freqs[i].toFixed(5)];
+                channels.forEach(ch => {
+                    const linVal = analysisResults.channels[ch].smoothedMag[i];
+                    const ref = 1e-5;
+                    const dbVal = 20 * Math.log10(Math.max(linVal, 1e-12) / ref);
+                    row.push(linVal.toFixed(8));
+                    row.push(dbVal.toFixed(4));
+                });
+                csvContent += row.join(',') + '\n';
+            }
+
+            // Default suggest filename
+            const defaultName = fileMetadata.name.replace('.csv', '') + '_FFT_Analysis.csv';
+
+            // Attempt File System Access API
+            if (window.showSaveFilePicker) {
+                try {
+                    const options = {
+                        suggestedName: defaultName,
+                        types: [{
+                            description: 'CSV Files',
+                            accept: { 'text/csv': ['.csv'] }
+                        }]
+                    };
+                    const handle = await window.showSaveFilePicker(options);
+                    const writable = await handle.createWritable();
+                    await writable.write(csvContent);
+                    await writable.close();
+                    alert('Data exported successfully!');
+                } catch (err) {
+                    // Fail silently or cancel logs
+                    console.log('File system save skipped: ', err);
+                }
+            } else {
+                // Fallback traditional download link
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", defaultName);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
+
+        // Download single chart image via Plotly.js & File System Access API
+        window.downloadChartImage = async function(divId, filename) {
+            const gd = document.getElementById(divId);
+            if (!gd) return;
+            
+            let cleanFileName = filename;
+            if (fileMetadata && fileMetadata.name) {
+                const base = fileMetadata.name.replace('.csv', '');
+                cleanFileName = `${base}_${filename}`;
+            }
+
+            if (window.showSaveFilePicker) {
+                try {
+                    // Convert plot to image data URL (base64)
+                    const dataUrl = await Plotly.toImage(gd, {
+                        format: 'jpeg',
+                        width: 1200,
+                        height: 600
+                    });
+                    
+                    // Fetch data URL to get a Blob object
+                    const response = await fetch(dataUrl);
+                    const blob = await response.blob();
+
+                    // Open Native File Picker
+                    const options = {
+                        suggestedName: cleanFileName + '.jpg',
+                        types: [{
+                            description: 'JPEG Image',
+                            accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
+                        }]
+                    };
+                    const handle = await window.showSaveFilePicker(options);
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                } catch (err) {
+                    console.log('File system save skipped: ', err);
+                }
+            } else {
+                // Fallback traditional automatic download
+                Plotly.downloadImage(gd, {
+                    format: 'jpeg',
+                    width: 1200,
+                    height: 600,
+                    filename: cleanFileName
+                });
+            }
+        };
+
+        // Export all charts sequentially (synchronous prompts)
+        btnExportImages.addEventListener('click', async () => {
+            const checkedBoxes = Array.from(channelsContainer.querySelectorAll('input:checked'));
+            const selectedChannels = checkedBoxes.map(cb => cb.value);
+            
+            // Loop through selected channels sequentially
+            for (let i = 0; i < selectedChannels.length; i++) {
+                const ch = selectedChannels[i];
+                // Wait for the user to finish saving the Time Domain graph
+                await downloadChartImage(`plot-time-${ch}`, `${ch}_Time_Domain`);
+                // Wait for the user to finish saving the Frequency Domain graph
+                await downloadChartImage(`plot-freq-${ch}`, `${ch}_Frequency_Spectrum`);
+            }
+        });
+    </script>
+</body>
+</html>
