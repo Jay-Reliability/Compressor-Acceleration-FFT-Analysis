@@ -16,40 +16,56 @@ st.set_page_config(
 # Custom Premium Styling (Dark Theme & Glassmorphism Aesthetics)
 st.markdown("""
     <style>
-        /* Base Background and Fonts */
-        .reportview-container {
-            background: #0a0a0f;
+        /* Enforce Background Tone */
+        div[data-testid="stAppViewContainer"] {
+            background-color: #0a0a0f !important;
         }
         
-        /* Metric Badges styling */
+        /* Metric Badges styling - high contrast neon border */
         .metric-badge {
-            background-color: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 10px 15px;
+            background-color: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(0, 229, 255, 0.25) !important;
+            border-radius: 10px;
+            padding: 12px 18px;
             text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+        .metric-badge:hover {
+            border-color: rgba(0, 229, 255, 0.6) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 229, 255, 0.15);
         }
         .metric-label {
             font-size: 0.8rem;
-            color: #94a3b8;
+            color: #94a3b8 !important;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
+            font-weight: 600;
         }
         .metric-value {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #00e5ff;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #00e5ff !important;
         }
         
-        /* Sidebar styling */
+        /* Sidebar styling - clear contrasting edge */
         section[data-testid="stSidebar"] {
-            background-color: rgba(20, 20, 30, 0.8);
-            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            background-color: #12121e !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
         
+        /* Enforce high-contrast text colors */
         h1, h2, h3 {
             font-family: 'Outfit', sans-serif !important;
+            color: #ffffff !important;
+        }
+        p, span, label {
+            color: #cbd5e1 !important;
+        }
+        div[data-testid="stMarkdownContainer"] p {
+            color: #e2e8f0 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -330,14 +346,16 @@ if 'channel_results' in st.session_state:
                 margin=dict(l=40, r=20, t=40, b=40),
                 height=350,
                 xaxis=dict(
-                    title=dict(text="Time (seconds)", font=dict(color='#94a3b8', size=11)),
-                    gridcolor='rgba(255,255,255,0.05)',
-                    zerolinecolor='rgba(255,255,255,0.1)'
+                    title=dict(text="Time (seconds)", font=dict(color='#cbd5e1', size=12)),
+                    tickfont=dict(color='#94a3b8', size=10),
+                    gridcolor='rgba(255,255,255,0.08)',
+                    zerolinecolor='rgba(255,255,255,0.15)'
                 ),
                 yaxis=dict(
-                    title=dict(text="Acceleration (g)", font=dict(color='#94a3b8', size=11)),
-                    gridcolor='rgba(255,255,255,0.05)',
-                    zerolinecolor='rgba(255,255,255,0.1)'
+                    title=dict(text="Acceleration (g)", font=dict(color='#cbd5e1', size=12)),
+                    tickfont=dict(color='#94a3b8', size=10),
+                    gridcolor='rgba(255,255,255,0.08)',
+                    zerolinecolor='rgba(255,255,255,0.15)'
                 )
             )
             
@@ -423,14 +441,16 @@ if 'channel_results' in st.session_state:
                 margin=dict(l=40, r=20, t=40, b=40),
                 height=350,
                 xaxis=dict(
-                    title=dict(text="Frequency (Hz)", font=dict(color='#94a3b8', size=11)),
-                    gridcolor='rgba(255,255,255,0.05)',
-                    zerolinecolor='rgba(255,255,255,0.1)'
+                    title=dict(text="Frequency (Hz)", font=dict(color='#cbd5e1', size=12)),
+                    tickfont=dict(color='#94a3b8', size=10),
+                    gridcolor='rgba(255,255,255,0.08)',
+                    zerolinecolor='rgba(255,255,255,0.15)'
                 ),
                 yaxis=dict(
-                    title=dict(text=y_label, font=dict(color='#94a3b8', size=11)),
-                    gridcolor='rgba(255,255,255,0.05)',
-                    zerolinecolor='rgba(255,255,255,0.1)'
+                    title=dict(text=y_label, font=dict(color='#cbd5e1', size=12)),
+                    tickfont=dict(color='#94a3b8', size=10),
+                    gridcolor='rgba(255,255,255,0.08)',
+                    zerolinecolor='rgba(255,255,255,0.15)'
                 )
             )
             
